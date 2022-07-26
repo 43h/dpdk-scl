@@ -573,11 +573,11 @@ enum {
 };
 
 /**
- * The generic rte_mbuf, containing a packet mbuf.
+ * The generic rte_mbuf, containing a packet mbuf.mbuf结构体定义
  */
 struct rte_mbuf {
 	RTE_MARKER cacheline0;
-
+    //数据部分地址
 	void *buf_addr;           /**< Virtual address of segment buffer. */
 	/**
 	 * Physical address of segment buffer.
@@ -589,7 +589,7 @@ struct rte_mbuf {
 
 	/* next 8 bytes are initialised on RX descriptor rearm */
 	RTE_MARKER64 rearm_data;
-	uint16_t data_off;
+	uint16_t data_off; //buf里实际数据地址偏移，即预留headroom
 
 	/**
 	 * Reference counter. Its size should at least equal to the size
@@ -599,20 +599,20 @@ struct rte_mbuf {
 	 * rte_mbuf_refcnt_set(). The functionality of these functions (atomic,
 	 * or non-atomic) is controlled by the RTE_MBUF_REFCNT_ATOMIC flag.
 	 */
-	uint16_t refcnt;
+	uint16_t refcnt; //引用计数
 
 	/**
 	 * Number of segments. Only valid for the first segment of an mbuf
 	 * chain.
 	 */
-	uint16_t nb_segs;
+	uint16_t nb_segs;//当用多个mbuf存一段数据时，在第一个mbuf内记录个数个数
 
 	/** Input port (16 bits to support more than 256 virtual ports).
 	 * The event eth Tx adapter uses this field to specify the output port.
 	 */
 	uint16_t port;
 
-	uint64_t ol_flags;        /**< Offload features. */
+	uint64_t ol_flags;        /**< Offload features. 网卡卸载功能*/
 
 	/* remaining bytes are set on RX when pulling packet from descriptor */
 	RTE_MARKER rx_descriptor_fields1;
@@ -625,7 +625,7 @@ struct rte_mbuf {
 	 * vlan is stripped from the data.
 	 */
 	RTE_STD_C11
-	union {
+	union { //4字节包类型，有哪些头(l2,l3,tunnel...)
 		uint32_t packet_type; /**< L2/L3/L4 and tunnel information. */
 		__extension__
 		struct {
@@ -651,11 +651,12 @@ struct rte_mbuf {
 			uint8_t inner_l4_type:4; /**< Inner L4 type. */
 		};
 	};
-
+	//pkt_len即有效数据长度;若mbuf链，则要把链上每个mbuf的data_len加上。
 	uint32_t pkt_len;         /**< Total pkt len: sum of all segments. */
-	uint16_t data_len;        /**< Amount of data in segment buffer. */
+	//该mbuf实际数据部分长度
+    uint16_t data_len;        /**< Amount of data in segment buffer. */
 	/** VLAN TCI (CPU order), valid if RTE_MBUF_F_RX_VLAN is set. */
-	uint16_t vlan_tci;
+	uint16_t vlan_tci; //网卡卸载vlan时，驱动收报回填的vlan id
 
 	RTE_STD_C11
 	union {
@@ -692,8 +693,8 @@ struct rte_mbuf {
 	};
 
 	/** Outer VLAN TCI (CPU order), valid if RTE_MBUF_F_RX_QINQ is set. */
-	uint16_t vlan_tci_outer;
-
+	uint16_t vlan_tci_outer; //两个vlan头下，外层vlan id.
+    //buf_len,数据缓存总长，包括：headroom,data,tailroom
 	uint16_t buf_len;         /**< Length of segment buffer. */
 
 	struct rte_mempool *pool; /**< Pool from which mbuf was allocated. */
