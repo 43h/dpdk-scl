@@ -222,29 +222,31 @@ rte_pktmbuf_pool_create_by_ops(const char *name, unsigned int n,
 {
 	struct rte_mempool *mp;
 	struct rte_pktmbuf_pool_private mbp_priv;
-	const char *mp_ops_name = ops_name;
+	const char *mp_ops_name = ops_name;  //可选名
 	unsigned elt_size;
 	int ret;
-
+    //检测私有数据段长度是否对齐
 	if (RTE_ALIGN(priv_size, RTE_MBUF_PRIV_ALIGN) != priv_size) {
 		RTE_LOG(ERR, MBUF, "mbuf priv_size=%u is not aligned\n",
 			priv_size);
 		rte_errno = EINVAL;
 		return NULL;
 	}
+    //计算一个元素总长度，针对mbuf包含：mbuf结构体部分+私有数据部分+数据部分
 	elt_size = sizeof(struct rte_mbuf) + (unsigned)priv_size +
 		(unsigned)data_room_size;
 	memset(&mbp_priv, 0, sizeof(mbp_priv));
 	mbp_priv.mbuf_data_room_size = data_room_size;
 	mbp_priv.mbuf_priv_size = priv_size;
-
+    //创建空的mempool
 	mp = rte_mempool_create_empty(name, n, elt_size, cache_size,
 		 sizeof(struct rte_pktmbuf_pool_private), socket_id, 0);
 	if (mp == NULL)
 		return NULL;
-
+    //检测可选名
 	if (mp_ops_name == NULL)
 		mp_ops_name = rte_mbuf_best_mempool_ops();
+    //默认添加可选名字
 	ret = rte_mempool_set_ops_byname(mp, mp_ops_name, NULL);
 	if (ret != 0) {
 		RTE_LOG(ERR, MBUF, "error setting mempool handler\n");
@@ -260,7 +262,7 @@ rte_pktmbuf_pool_create_by_ops(const char *name, unsigned int n,
 		rte_errno = -ret;
 		return NULL;
 	}
-
+    //初始化每个对象，即mbuf对象
 	rte_mempool_obj_iter(mp, rte_pktmbuf_init, NULL);
 
 	return mp;
