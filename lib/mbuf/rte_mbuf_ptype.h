@@ -8,7 +8,7 @@
 
 /**
  * @file
- * RTE Mbuf Packet Types
+ * RTE Mbuf Packet Types 32bit定义包含的数据包头的组合
  *
  * This file contains declarations for features related to mbuf packet
  * types. The packet type gives information about the data carried by the
