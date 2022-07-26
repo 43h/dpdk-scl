@@ -118,14 +118,14 @@ struct rte_ring_hts_headtail {
  * a problem.
  */
 struct rte_ring {
-	char name[RTE_RING_NAMESIZE] __rte_cache_aligned;
+	char name[RTE_RING_NAMESIZE] __rte_cache_aligned; //名字
 	/**< Name of the ring. */
 	int flags;               /**< Flags supplied at creation. */
-	const struct rte_memzone *memzone;
+	const struct rte_memzone *memzone; //使用的内存区
 			/**< Memzone, if any, containing the rte_ring */
-	uint32_t size;           /**< Size of ring. */
-	uint32_t mask;           /**< Mask (size-1) of ring. */
-	uint32_t capacity;       /**< Usable size of ring */
+	uint32_t size;           /**< Size of ring. *///元素总个数
+	uint32_t mask;           /**< Mask (size-1) of ring. *///计算索引掩码
+	uint32_t capacity;       /**< Usable size of ring *///可用元素个数
 
 	char pad0 __rte_cache_aligned; /**< empty cache line */
 
