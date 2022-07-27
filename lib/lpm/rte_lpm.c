@@ -20,7 +20,7 @@
 #include "rte_lpm.h"
 
 TAILQ_HEAD(rte_lpm_list, rte_tailq_entry);
-
+//所有lpm表都tailq里
 static struct rte_tailq_elem rte_lpm_tailq = {
 	.name = "RTE_LPM",
 };
@@ -45,7 +45,7 @@ struct rte_lpm_rule_info {
 	uint32_t first_rule; /**< Indexes the first rule of a given depth. */
 };
 
-/** @internal LPM structure. */
+/** @internal LPM structure. */ //lpm的内部结构体
 struct __rte_lpm {
 	/* Exposed LPM data. */
 	struct rte_lpm lpm;
@@ -112,7 +112,7 @@ depth_to_range(uint8_t depth)
 }
 
 /*
- * Find an existing lpm table and return a pointer to it.
+ * Find an existing lpm table and return a pointer to it.根据名字查找
  */
 struct rte_lpm *
 rte_lpm_find_existing(const char *name)
@@ -140,14 +140,14 @@ rte_lpm_find_existing(const char *name)
 }
 
 /*
- * Allocates memory for LPM object
+ * Allocates memory for LPM object 创建LPM表
  */
 struct rte_lpm *
 rte_lpm_create(const char *name, int socket_id,
 		const struct rte_lpm_config *config)
 {
 	char mem_name[RTE_LPM_NAMESIZE];
-	struct __rte_lpm *i_lpm;
+	struct __rte_lpm *i_lpm; //内部实际lpm结构
 	struct rte_lpm *lpm = NULL;
 	struct rte_tailq_entry *te;
 	uint32_t mem_size, rules_size, tbl8s_size;
@@ -168,7 +168,7 @@ rte_lpm_create(const char *name, int socket_id,
 
 	rte_mcfg_tailq_write_lock();
 
-	/* guarantee there's no existing */
+	/* guarantee there's no existing */ //根据名字查找一次，确保没重名
 	TAILQ_FOREACH(te, lpm_list, next) {
 		i_lpm = te->data;
 		if (strncmp(name, i_lpm->name, RTE_LPM_NAMESIZE) == 0)
@@ -368,17 +368,20 @@ rule_add(struct __rte_lpm *i_lpm, uint32_t ip_masked, uint8_t depth,
 	VERIFY_DEPTH(depth);
 
 	/* Scan through rule group to see if rule already exists. */
+    //检测规则是否已经存在
 	if (i_lpm->rule_info[depth - 1].used_rules > 0) {
 
 		/* rule_gindex stands for rule group index. */
+        //该组第一个索引位置
 		rule_gindex = i_lpm->rule_info[depth - 1].first_rule;
 		/* Initialise rule_index to point to start of rule group. */
 		rule_index = rule_gindex;
 		/* Last rule = Last used rule in this rule group. */
+        //该组最后一个索引的后一位置
 		last_rule = rule_gindex + i_lpm->rule_info[depth - 1].used_rules;
 
 		for (; rule_index < last_rule; rule_index++) {
-
+            //开始遍历，检测是否已经存在
 			/* If rule already exists update next hop and return. */
 			if (i_lpm->rules_tbl[rule_index].ip == ip_masked) {
 
@@ -390,13 +393,14 @@ rule_add(struct __rte_lpm *i_lpm, uint32_t ip_masked, uint8_t depth,
 				return rule_index;
 			}
 		}
-
+        //不存在，检测新的位置是否溢出
 		if (rule_index == i_lpm->max_rules)
 			return -ENOSPC;
 	} else {
+        //要插入的组无任何记录
 		/* Calculate the position in which the rule will be stored. */
 		rule_index = 0;
-
+        //从该组开始，往前查找被使用组的下一个位置，作为新的插入位置
 		for (i = depth - 1; i > 0; i--) {
 			if (i_lpm->rule_info[i - 1].used_rules > 0) {
 				rule_index = i_lpm->rule_info[i - 1].first_rule
@@ -406,24 +410,30 @@ rule_add(struct __rte_lpm *i_lpm, uint32_t ip_masked, uint8_t depth,
 		}
 		if (rule_index == i_lpm->max_rules)
 			return -ENOSPC;
-
+        //记录该组第一个rule-table的索引
 		i_lpm->rule_info[depth - 1].first_rule = rule_index;
 	}
-
+    /*
+     * 没有检测要插入的位置是否被下一组占用，
+     * 而是将后续全部后移一个位置
+     */
 	/* Make room for the new rule in the array. */
+    //从后一组开始，依次往前移动一位
 	for (i = RTE_LPM_MAX_DEPTH; i > depth; i--) {
 		if (i_lpm->rule_info[i - 1].first_rule
 				+ i_lpm->rule_info[i - 1].used_rules == i_lpm->max_rules)
 			return -ENOSPC;
 
 		if (i_lpm->rule_info[i - 1].used_rules > 0) {
+		//后续某组有数组，直接将该组第一个元素移动到最后去
 			i_lpm->rules_tbl[i_lpm->rule_info[i - 1].first_rule
 				+ i_lpm->rule_info[i - 1].used_rules]
 					= i_lpm->rules_tbl[i_lpm->rule_info[i - 1].first_rule];
+            //移动完后，更新移动组的起始位置
 			i_lpm->rule_info[i - 1].first_rule++;
 		}
 	}
-
+    //插入新的rule
 	/* Add the new rule. */
 	i_lpm->rules_tbl[rule_index].ip = ip_masked;
 	i_lpm->rules_tbl[rule_index].next_hop = next_hop;
@@ -444,11 +454,11 @@ rule_delete(struct __rte_lpm *i_lpm, int32_t rule_index, uint8_t depth)
 	int i;
 
 	VERIFY_DEPTH(depth);
-
+    //该组最后一个元素赋值到要删除的位置上
 	i_lpm->rules_tbl[rule_index] =
 			i_lpm->rules_tbl[i_lpm->rule_info[depth - 1].first_rule
 			+ i_lpm->rule_info[depth - 1].used_rules - 1];
-
+    //将后续所有组的记录往前移动一位
 	for (i = depth; i < RTE_LPM_MAX_DEPTH; i++) {
 		if (i_lpm->rule_info[i].used_rules > 0) {
 			i_lpm->rules_tbl[i_lpm->rule_info[i].first_rule - 1] =
@@ -457,7 +467,7 @@ rule_delete(struct __rte_lpm *i_lpm, int32_t rule_index, uint8_t depth)
 			i_lpm->rule_info[i].first_rule--;
 		}
 	}
-
+    //更新该组记录数
 	i_lpm->rule_info[depth - 1].used_rules--;
 }
 
@@ -586,6 +596,8 @@ add_depth_small(struct __rte_lpm *i_lpm, uint32_t ip, uint8_t depth,
 		 * For invalid OR valid and non-extended tbl 24 entries set
 		 * entry.
 		 */
+        //如果规则无效，就添加
+        //如果规则存在，但是新添加的子网掩码长度更长，则更新
 		if (!i_lpm->lpm.tbl24[i].valid || (i_lpm->lpm.tbl24[i].valid_group == 0 &&
 				i_lpm->lpm.tbl24[i].depth <= depth)) {
 
@@ -793,7 +805,7 @@ add_depth_big(struct __rte_lpm *i_lpm, uint32_t ip_masked, uint8_t depth,
 }
 
 /*
- * Add a route
+ * Add a route，先将信息存到rte_lpm_rule里，再存到rte_lpm_tbl_entry里
  */
 int
 rte_lpm_add(struct rte_lpm *lpm, uint32_t ip, uint8_t depth,
@@ -806,27 +818,28 @@ rte_lpm_add(struct rte_lpm *lpm, uint32_t ip, uint8_t depth,
 	/* Check user arguments. */
 	if ((lpm == NULL) || (depth < 1) || (depth > RTE_LPM_MAX_DEPTH))
 		return -EINVAL;
-
+    //找到__rte_lpm起始位置
 	i_lpm = container_of(lpm, struct __rte_lpm, lpm);
+    //计算与掩码运算后的IP数值
 	ip_masked = ip & depth_to_mask(depth);
 
-	/* Add the rule to the rule table. */
+	/* Add the rule to the rule table. *///加到rte_rule_tbl里
 	rule_index = rule_add(i_lpm, ip_masked, depth, next_hop);
 
 	/* Skip table entries update if The rule is the same as
 	 * the rule in the rules table.
 	 */
-	if (rule_index == -EEXIST)
+	if (rule_index == -EEXIST) //已存在，更新next_hop返回
 		return 0;
 
 	/* If the is no space available for new rule return error. */
-	if (rule_index < 0) {
+	if (rule_index < 0) { //无空间，返回
 		return rule_index;
 	}
-
+    // 添加到rte_lpm_tbl_entry里
 	if (depth <= MAX_DEPTH_TBL24) {
 		status = add_depth_small(i_lpm, ip_masked, depth, next_hop);
-	} else { /* If depth > RTE_LPM_MAX_DEPTH_TBL24 */
+	} else { /* If depth > RTE_LPM_MAX_DEPTH_TBL24 *///掩码长度是(24,32]
 		status = add_depth_big(i_lpm, ip_masked, depth, next_hop);
 
 		/*

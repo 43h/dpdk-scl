@@ -24,24 +24,24 @@ extern "C" {
 #endif
 
 /** Max number of characters in LPM name. */
-#define RTE_LPM_NAMESIZE                32
+#define RTE_LPM_NAMESIZE                32 //名字最长32个字符
 
 /** Maximum depth value possible for IPv4 LPM. */
-#define RTE_LPM_MAX_DEPTH               32
+#define RTE_LPM_MAX_DEPTH               32 //深度32，对应IPv4最大32位掩码
 
 /** @internal Total number of tbl24 entries. */
-#define RTE_LPM_TBL24_NUM_ENTRIES       (1 << 24)
+#define RTE_LPM_TBL24_NUM_ENTRIES       (1 << 24) //tlb24表，2^24个
 
 /** @internal Number of entries in a tbl8 group. */
-#define RTE_LPM_TBL8_GROUP_NUM_ENTRIES  256
+#define RTE_LPM_TBL8_GROUP_NUM_ENTRIES  256 //tbl8组内tbl8表个数
 
 /** @internal Max number of tbl8 groups in the tbl8. */
-#define RTE_LPM_MAX_TBL8_NUM_GROUPS         (1 << 24)
+#define RTE_LPM_MAX_TBL8_NUM_GROUPS         (1 << 24) //tbl8组最大个数
 
 /** @internal Total number of tbl8 groups in the tbl8. */
-#define RTE_LPM_TBL8_NUM_GROUPS         256
+#define RTE_LPM_TBL8_NUM_GROUPS         256 //tbl8组默认个数
 
-/** @internal Total number of tbl8 entries. */
+/** @internal Total number of tbl8 entries. */ //tlb8表默认个数
 #define RTE_LPM_TBL8_NUM_ENTRIES        (RTE_LPM_TBL8_NUM_GROUPS * \
 					RTE_LPM_TBL8_GROUP_NUM_ENTRIES)
 
@@ -65,14 +65,14 @@ extern "C" {
 
 /** RCU reclamation modes */
 enum rte_lpm_qsbr_mode {
-	/** Create defer queue for reclaim. */
+	/** Create defer queue for reclaim. */ //加个删除队列，异步删除
 	RTE_LPM_QSBR_MODE_DQ = 0,
-	/** Use blocking mode reclaim. No defer queue created. */
+	/** Use blocking mode reclaim. No defer queue created. *///加锁，同步删除
 	RTE_LPM_QSBR_MODE_SYNC
 };
 
 #if RTE_BYTE_ORDER == RTE_LITTLE_ENDIAN
-/** @internal Tbl24 entry structure. */
+/** @internal Tbl24 entry structure. */ //tbl24表项定义
 __extension__
 struct rte_lpm_tbl_entry {
 	/**
@@ -114,12 +114,12 @@ struct rte_lpm_config {
 	int flags;               /**< This field is currently unused. */
 };
 
-/** @internal LPM structure. */
+/** @internal LPM structure. */ //lpm结构体定义
 struct rte_lpm {
 	/* LPM Tables. */
 	struct rte_lpm_tbl_entry tbl24[RTE_LPM_TBL24_NUM_ENTRIES]
-			__rte_cache_aligned; /**< LPM tbl24 table. */
-	struct rte_lpm_tbl_entry *tbl8; /**< LPM tbl8 table. */
+			__rte_cache_aligned; /**< LPM tbl24 table. */ //tbl24表，固定2^256个
+	struct rte_lpm_tbl_entry *tbl8; /**< LPM tbl8 table. */ //tbl8指针
 };
 
 /** LPM RCU QSBR configuration structure. */
@@ -298,6 +298,7 @@ rte_lpm_lookup(const struct rte_lpm *lpm, uint32_t ip, uint32_t *next_hop)
 	 * the operations.
 	 */
 	/* Copy tbl8 entry (only if needed) */
+    //检测是否有tbl8表
 	if (unlikely((tbl_entry & RTE_LPM_VALID_EXT_ENTRY_BITMASK) ==
 			RTE_LPM_VALID_EXT_ENTRY_BITMASK)) {
 
@@ -351,7 +352,7 @@ rte_lpm_lookup_bulk_func(const struct rte_lpm *lpm, const uint32_t *ips,
 	for (i = 0; i < n; i++) {
 		tbl24_indexes[i] = ips[i] >> 8;
 	}
-
+    //批量查找
 	for (i = 0; i < n; i++) {
 		/* Simply copy tbl24 entry to output */
 		ptbl = (const uint32_t *)&lpm->tbl24[tbl24_indexes[i]];
