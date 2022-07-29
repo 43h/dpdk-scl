@@ -22,25 +22,25 @@ extern "C" {
 #include <rte_mbuf.h>
 #include <rte_byteorder.h>
 
-#define RTE_ETHER_ADDR_LEN  6 /**< Length of Ethernet address. */
-#define RTE_ETHER_TYPE_LEN  2 /**< Length of Ethernet type field. */
-#define RTE_ETHER_CRC_LEN   4 /**< Length of Ethernet CRC. */
+#define RTE_ETHER_ADDR_LEN  6 /**< Length of Ethernet address. mac地址6字节*/
+#define RTE_ETHER_TYPE_LEN  2 /**< Length of Ethernet type field. 以太网报文类型2字节*/
+#define RTE_ETHER_CRC_LEN   4 /**< Length of Ethernet CRC. 冗余校验2字节*/
 #define RTE_ETHER_HDR_LEN   \
 	(RTE_ETHER_ADDR_LEN * 2 + \
 		RTE_ETHER_TYPE_LEN) /**< Length of Ethernet header. */
-#define RTE_ETHER_MIN_LEN   64    /**< Minimum frame len, including CRC. */
-#define RTE_ETHER_MAX_LEN   1518  /**< Maximum frame len, including CRC. */
+#define RTE_ETHER_MIN_LEN   64    /**< Minimum frame len, including CRC. 最小帧长*/
+#define RTE_ETHER_MAX_LEN   1518  /**< Maximum frame len, including CRC. 最大帧长*/
 #define RTE_ETHER_MTU       \
 	(RTE_ETHER_MAX_LEN - RTE_ETHER_HDR_LEN - \
 		RTE_ETHER_CRC_LEN) /**< Ethernet MTU. */
 
-#define RTE_VLAN_HLEN       4  /**< VLAN (IEEE 802.1Q) header length. */
+#define RTE_VLAN_HLEN       4  /**< VLAN (IEEE 802.1Q) header length. VLAN头长度*/
 /** Maximum VLAN frame length (excluding QinQ), including CRC. */
 #define RTE_ETHER_MAX_VLAN_FRAME_LEN \
 	(RTE_ETHER_MAX_LEN + RTE_VLAN_HLEN)
 
 #define RTE_ETHER_MAX_JUMBO_FRAME_LEN \
-	0x3F00 /**< Maximum Jumbo frame length, including CRC. */
+	0x3F00 /**< Maximum Jumbo frame length, including CRC. 巨型帧长*/
 
 #define RTE_ETHER_MAX_VLAN_ID  4095 /**< Maximum VLAN ID. */
 
@@ -59,9 +59,11 @@ extern "C" {
  */
 struct rte_ether_addr {
 	uint8_t addr_bytes[RTE_ETHER_ADDR_LEN]; /**< Addr bytes in tx order */
-} __rte_aligned(2);
+} __rte_aligned(2); //2字节对齐
 
+//第一字节的第二低位，标识是本地还是全局
 #define RTE_ETHER_LOCAL_ADMIN_ADDR 0x02 /**< Locally assigned Eth. address. */
+//第一节字节第一地位，标识组播(广播)还是单播
 #define RTE_ETHER_GROUP_ADDR  0x01 /**< Multicast or broadcast Eth. address. */
 
 /**
@@ -83,7 +85,9 @@ static inline int rte_is_same_ether_addr(const struct rte_ether_addr *ea1,
 {
 	const uint16_t *w1 = (const uint16_t *)ea1;
 	const uint16_t *w2 = (const uint16_t *)ea2;
-
+    //如果用"w1[0] ==w2[0]"，实际是"w1[0] - w2[2]"，
+    //位运算比减法快，所以这里用的是异或
+    //异或性质：若a =b, a^b = 0; 
 	return ((w1[0] ^ w2[0]) | (w1[1] ^ w2[1]) | (w1[2] ^ w2[2])) == 0;
 }
 
@@ -116,7 +120,7 @@ static inline int rte_is_zero_ether_addr(const struct rte_ether_addr *ea)
  */
 static inline int rte_is_unicast_ether_addr(const struct rte_ether_addr *ea)
 {
-	return (ea->addr_bytes[0] & RTE_ETHER_GROUP_ADDR) == 0;
+	return (ea->addr_bytes[0] & RTE_ETHER_GROUP_ADDR) == 0; //检测第一字节最低位
 }
 
 /**
@@ -238,7 +242,7 @@ rte_ether_addr_copy(const struct rte_ether_addr *__restrict ea_from,
 #define RTE_ETHER_ADDR_FMT_SIZE         18
 /**
  * Format 48bits Ethernet address in pattern xx:xx:xx:xx:xx:xx.
- *
+ * //将地址转换为字符串
  * @param buf
  *   A pointer to buffer contains the formatted MAC address.
  * @param size
@@ -251,7 +255,7 @@ rte_ether_format_addr(char *buf, uint16_t size,
 		      const struct rte_ether_addr *eth_addr);
 /**
  * Convert string with Ethernet address to an ether_addr.
- *
+ * //将字符串转换为eth地址
  * @param str
  *   A pointer to buffer contains the formatted MAC address.
  *   The supported formats are:
@@ -268,7 +272,7 @@ rte_ether_unformat_addr(const char *str, struct rte_ether_addr *eth_addr);
 
 /**
  * Ethernet header: Contains the destination address, source address
- * and frame type.
+ * and frame type. 帧头定义
  */
 struct rte_ether_hdr {
 	struct rte_ether_addr dst_addr; /**< Destination address. */
@@ -279,7 +283,7 @@ struct rte_ether_hdr {
 /**
  * Ethernet VLAN Header.
  * Contains the 16-bit VLAN Tag Control Identifier and the Ethernet type
- * of the encapsulated frame.
+ * of the encapsulated frame. vlan头定义
  */
 struct rte_vlan_hdr {
 	rte_be16_t vlan_tci;  /**< Priority (3) + CFI (1) + Identifier Code (12) */
@@ -288,7 +292,7 @@ struct rte_vlan_hdr {
 
 
 
-/* Ethernet frame types */
+/* Ethernet frame types */ //以太网帧类型
 #define RTE_ETHER_TYPE_IPV4 0x0800 /**< IPv4 Protocol. */
 #define RTE_ETHER_TYPE_IPV6 0x86DD /**< IPv6 Protocol. */
 #define RTE_ETHER_TYPE_ARP  0x0806 /**< Arp Protocol. */
@@ -311,7 +315,7 @@ struct rte_vlan_hdr {
 #define RTE_ETHER_TYPE_ECPRI 0xAEFE /**< eCPRI ethertype (.1Q supported). */
 
 /**
- * Extract VLAN tag information into mbuf
+ * Extract VLAN tag information into mbuf 从mbuf里删除vlan头
  *
  * Software version of VLAN stripping
  *
@@ -324,17 +328,18 @@ struct rte_vlan_hdr {
 static inline int rte_vlan_strip(struct rte_mbuf *m)
 {
 	struct rte_ether_hdr *eh
-		 = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+		 = rte_pktmbuf_mtod(m, struct rte_ether_hdr *); //找到eth头
 	struct rte_vlan_hdr *vh;
 
-	if (eh->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN))
+	if (eh->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN)) //检测类型
 		return -1;
 
-	vh = (struct rte_vlan_hdr *)(eh + 1);
-	m->ol_flags |= RTE_MBUF_F_RX_VLAN | RTE_MBUF_F_RX_VLAN_STRIPPED;
-	m->vlan_tci = rte_be_to_cpu_16(vh->vlan_tci);
+	vh = (struct rte_vlan_hdr *)(eh + 1); //eth头就是vlan头
+	m->ol_flags |= RTE_MBUF_F_RX_VLAN | RTE_MBUF_F_RX_VLAN_STRIPPED;//增加vlan卸载标识
+	m->vlan_tci = rte_be_to_cpu_16(vh->vlan_tci); //保存vlan id
 
-	/* Copy ether header over rather than moving whole packet */
+	/* Copy ether header over rather than moving whole packet *///eth头后移
+	//调用rte_pktmbuf_adj调整数据长度，然后将eth头往后复制12字节
 	memmove(rte_pktmbuf_adj(m, sizeof(struct rte_vlan_hdr)),
 		eh, 2 * RTE_ETHER_ADDR_LEN);
 
@@ -359,6 +364,8 @@ static inline int rte_vlan_insert(struct rte_mbuf **m)
 	struct rte_vlan_hdr *vh;
 
 	/* Can't insert header if mbuf is shared */
+    //RTE_MBUF_DIRECT 确保不是引用型报文，即只有mbuf头，没实际data区域
+    //rte_mbuf_refcnt_read 检测引用技术，避免在引用时，被修改
 	if (!RTE_MBUF_DIRECT(*m) || rte_mbuf_refcnt_read(*m) > 1)
 		return -EINVAL;
 
@@ -377,9 +384,9 @@ static inline int rte_vlan_insert(struct rte_mbuf **m)
 
 	vh = (struct rte_vlan_hdr *) (nh + 1);
 	vh->vlan_tci = rte_cpu_to_be_16((*m)->vlan_tci);
-
+    //去掉vlan下载标识
 	(*m)->ol_flags &= ~(RTE_MBUF_F_RX_VLAN_STRIPPED | RTE_MBUF_F_TX_VLAN);
-
+    //是否有隧道
 	if ((*m)->ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK)
 		(*m)->outer_l2_len += sizeof(struct rte_vlan_hdr);
 	else
