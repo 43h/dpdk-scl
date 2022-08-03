@@ -30,18 +30,18 @@ extern "C" {
 #define RTE_LPM_MAX_DEPTH               32 //深度32，对应IPv4最大32位掩码
 
 /** @internal Total number of tbl24 entries. */
-#define RTE_LPM_TBL24_NUM_ENTRIES       (1 << 24) //tlb24表，2^24个
+#define RTE_LPM_TBL24_NUM_ENTRIES       (1 << 24) //tlb24表个数，2^24个
 
 /** @internal Number of entries in a tbl8 group. */
-#define RTE_LPM_TBL8_GROUP_NUM_ENTRIES  256 //tbl8组内tbl8表个数
+#define RTE_LPM_TBL8_GROUP_NUM_ENTRIES  256 //一组tbl8表，默认256个
 
 /** @internal Max number of tbl8 groups in the tbl8. */
-#define RTE_LPM_MAX_TBL8_NUM_GROUPS         (1 << 24) //tbl8组最大个数
+#define RTE_LPM_MAX_TBL8_NUM_GROUPS         (1 << 24) //tbl24最大2^24,即每个tbl24可以有一组tbl8
 
 /** @internal Total number of tbl8 groups in the tbl8. */
 #define RTE_LPM_TBL8_NUM_GROUPS         256 //tbl8组默认个数
 
-/** @internal Total number of tbl8 entries. */ //tlb8表默认个数
+/** @internal Total number of tbl8 entries. */ //tlb8表项个数
 #define RTE_LPM_TBL8_NUM_ENTRIES        (RTE_LPM_TBL8_NUM_GROUPS * \
 					RTE_LPM_TBL8_GROUP_NUM_ENTRIES)
 
@@ -67,7 +67,7 @@ extern "C" {
 enum rte_lpm_qsbr_mode {
 	/** Create defer queue for reclaim. */ //加个删除队列，异步删除
 	RTE_LPM_QSBR_MODE_DQ = 0,
-	/** Use blocking mode reclaim. No defer queue created. *///加锁，同步删除
+	/** Use blocking mode reclaim. No defer queue created. */ //加锁，同步删除
 	RTE_LPM_QSBR_MODE_SYNC
 };
 
@@ -109,8 +109,8 @@ struct rte_lpm_tbl_entry {
 
 /** LPM configuration structure. */
 struct rte_lpm_config {
-	uint32_t max_rules;      /**< Max number of rules. */
-	uint32_t number_tbl8s;   /**< Number of tbl8s to allocate. */
+	uint32_t max_rules;      /**< Max number of rules. 最大规则数 */
+	uint32_t number_tbl8s;   /**< Number of tbl8s to allocate. 需要分配的tbl8表个数*/
 	int flags;               /**< This field is currently unused. */
 };
 
@@ -118,8 +118,8 @@ struct rte_lpm_config {
 struct rte_lpm {
 	/* LPM Tables. */
 	struct rte_lpm_tbl_entry tbl24[RTE_LPM_TBL24_NUM_ENTRIES]
-			__rte_cache_aligned; /**< LPM tbl24 table. */ //tbl24表，固定2^256个
-	struct rte_lpm_tbl_entry *tbl8; /**< LPM tbl8 table. */ //tbl8指针
+			__rte_cache_aligned; /**< LPM tbl24 table. */ //tbl24表，固定2^24个
+	struct rte_lpm_tbl_entry *tbl8; /**< LPM tbl8 table. */ //tbl8表指针，稍后动态申请
 };
 
 /** LPM RCU QSBR configuration structure. */
@@ -309,7 +309,7 @@ rte_lpm_lookup(const struct rte_lpm *lpm, uint32_t ip, uint32_t *next_hop)
 		ptbl = (const uint32_t *)&lpm->tbl8[tbl8_index];
 		tbl_entry = *ptbl;
 	}
-
+	 //表项占4个字节，next_hop占后3个字节；找到表项后直接取后3个字节
 	*next_hop = ((uint32_t)tbl_entry & 0x00FFFFFF);
 	return (tbl_entry & RTE_LPM_LOOKUP_SUCCESS) ? 0 : -ENOENT;
 }

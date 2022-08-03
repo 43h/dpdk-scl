@@ -90,6 +90,7 @@ depth_to_mask(uint8_t depth)
 	/* To calculate a mask start with a 1 on the left hand side and right
 	 * shift while populating the left hand side with 1's
 	 */
+    //(int)0x80000000 是负数，右移最左边会补1
 	return (int)0x80000000 >> (depth - 1);
 }
 
@@ -203,7 +204,7 @@ rte_lpm_create(const char *name, int socket_id,
 		rte_errno = ENOMEM;
 		goto exit;
 	}
-
+	//rule分配内存
 	i_lpm->rules_tbl = rte_zmalloc_socket(NULL,
 			(size_t)rules_size, RTE_CACHE_LINE_SIZE, socket_id);
 
@@ -215,7 +216,7 @@ rte_lpm_create(const char *name, int socket_id,
 		rte_errno = ENOMEM;
 		goto exit;
 	}
-
+    //tbl8分配内存
 	i_lpm->lpm.tbl8 = rte_zmalloc_socket(NULL,
 			(size_t)tbl8s_size, RTE_CACHE_LINE_SIZE, socket_id);
 
@@ -588,16 +589,24 @@ add_depth_small(struct __rte_lpm *i_lpm, uint32_t ip, uint8_t depth,
 	uint32_t tbl24_index, tbl24_range, tbl8_index, tbl8_group_end, i, j;
 
 	/* Calculate the index into Table24. */
-	tbl24_index = ip >> 8;
-	tbl24_range = depth_to_range(depth);
-
+	tbl24_index = ip >> 8; //取高3字节
+	tbl24_range = depth_to_range(depth); //24bit地址对应的子网地址空间
+	/*-------------------------
+     *例如：添加192.168.0.0/16这个条路由
+	 *192.168.0.0 右移动8bit 变成192.168.0
+	 * rang = 1<<(24-16),即0xff
+     * IP掩码为16，切前16bt在192.168.0--192.168.ff范围内时，都会命中该路由
+	 * 需要将路由添加到192.168.0--192.168.ff对应的地址空间
+	 */
 	for (i = tbl24_index; i < (tbl24_index + tbl24_range); i++) {
 		/*
 		 * For invalid OR valid and non-extended tbl 24 entries set
 		 * entry.
 		 */
-        //如果规则无效，就添加
-        //如果规则存在，但是新添加的子网掩码长度更长，则更新
+        //如果条目无效，就添加
+        //如果条目被占用，在没有tbl8表并且子网长度比当前小时，则更新条目
+		//如果有tbl8，后续处理
+        //如果之前的掩码长度比目前大，则不更新
 		if (!i_lpm->lpm.tbl24[i].valid || (i_lpm->lpm.tbl24[i].valid_group == 0 &&
 				i_lpm->lpm.tbl24[i].depth <= depth)) {
 
@@ -616,7 +625,9 @@ add_depth_small(struct __rte_lpm *i_lpm, uint32_t ip, uint8_t depth,
 
 			continue;
 		}
-
+		//有tbl8表，说明当前子网掩码长度比之前的小
+        //只有掩码长度超过24才会用到tbl8
+        //实参进来的长度是超过24的，我认为下面这段应该没用
 		if (i_lpm->lpm.tbl24[i].valid_group == 1) {
 			/* If tbl24 entry is valid and extended calculate the
 			 *  index into tbl8.
@@ -664,9 +675,9 @@ add_depth_big(struct __rte_lpm *i_lpm, uint32_t ip_masked, uint8_t depth,
 		tbl8_range, i;
 
 	tbl24_index = (ip_masked >> 8);
-	tbl8_range = depth_to_range(depth);
-
-	if (!i_lpm->lpm.tbl24[tbl24_index].valid) {
+	tbl8_range = depth_to_range(depth); //tbl8 地址空间范围
+	//由于子网掩码长度大于24，就一表项
+	if (!i_lpm->lpm.tbl24[tbl24_index].valid) { //表项未被占用
 		/* Search for a free tbl8 group. */
 		tbl8_group_index = tbl8_alloc(i_lpm);
 
@@ -679,8 +690,13 @@ add_depth_big(struct __rte_lpm *i_lpm, uint32_t ip_masked, uint8_t depth,
 		tbl8_index = (tbl8_group_index *
 				RTE_LPM_TBL8_GROUP_NUM_ENTRIES) +
 				(ip_masked & 0xFF);
-
-		/* Set tbl8 entry. */
+		/*
+         * 例如：192.168.1.128/25
+         * range范围是2^7,即0x00--0x7f
+		 * ip_masked & 0xff = 128
+         * tbl8_index = (tbl8_group_index * RTE_LPM_TBL8_GROUP_NUM_ENTRIES) + 128
+         */
+		/* Set tbl8 entry. */ //刚分配的直接赋值
 		for (i = tbl8_index; i < (tbl8_index + tbl8_range); i++) {
 			struct rte_lpm_tbl_entry new_tbl8_entry = {
 				.valid = VALID,
@@ -713,6 +729,8 @@ add_depth_big(struct __rte_lpm *i_lpm, uint32_t ip_masked, uint8_t depth,
 
 	} /* If valid entry but not extended calculate the index into Table8. */
 	else if (i_lpm->lpm.tbl24[tbl24_index].valid_group == 0) {
+		//表项被占用，但是tbl8表
+        //申请tbl8表，并赋值，更新tbl24表项
 		/* Search for free tbl8 group. */
 		tbl8_group_index = tbl8_alloc(i_lpm);
 
@@ -773,6 +791,8 @@ add_depth_big(struct __rte_lpm *i_lpm, uint32_t ip_masked, uint8_t depth,
 	} else { /*
 		* If it is valid, extended entry calculate the index into tbl8.
 		*/
+		//tbl24表项被占用，并且有tbl24
+        //直接查找表项，按子网掩码长度决定是否更新表项
 		tbl8_group_index = i_lpm->lpm.tbl24[tbl24_index].group_idx;
 		tbl8_group_start = tbl8_group_index *
 				RTE_LPM_TBL8_GROUP_NUM_ENTRIES;
@@ -823,7 +843,7 @@ rte_lpm_add(struct rte_lpm *lpm, uint32_t ip, uint8_t depth,
     //计算与掩码运算后的IP数值
 	ip_masked = ip & depth_to_mask(depth);
 
-	/* Add the rule to the rule table. *///加到rte_rule_tbl里
+	/* Add the rule to the rule table. *///加到struct rte_lpm_rule *rules_tbl里
 	rule_index = rule_add(i_lpm, ip_masked, depth, next_hop);
 
 	/* Skip table entries update if The rule is the same as
