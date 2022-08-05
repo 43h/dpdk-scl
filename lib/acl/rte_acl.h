@@ -17,24 +17,24 @@
 extern "C" {
 #endif
 
-#define	RTE_ACL_MAX_CATEGORIES	16
+#define	RTE_ACL_MAX_CATEGORIES	16 //规则种类，每条规则可以加入多个种类里(通过种类掩码)
 
 #define	RTE_ACL_RESULTS_MULTIPLIER	(XMM_SIZE / sizeof(uint32_t))
 
 #define RTE_ACL_MAX_LEVELS 64
 #define RTE_ACL_MAX_FIELDS 64
 
-union rte_acl_field_types {
+union rte_acl_field_types { //可以匹配的数据类型长度
 	uint8_t  u8;
 	uint16_t u16;
 	uint32_t u32;
 	uint64_t u64;
 };
 
-enum {
-	RTE_ACL_FIELD_TYPE_MASK = 0,
-	RTE_ACL_FIELD_TYPE_RANGE,
-	RTE_ACL_FIELD_TYPE_BITMASK
+enum {                                     //匹配方式
+	RTE_ACL_FIELD_TYPE_MASK = 0,           //掩码：数值&掩码，例如：IP匹配
+	RTE_ACL_FIELD_TYPE_RANGE,              //范围：例如：端口范围
+	RTE_ACL_FIELD_TYPE_BITMASK             //比特掩码：数值&bit掩码，字节里若干bit，例如：头部里特殊bit字段
 };
 
 /**
@@ -48,12 +48,24 @@ enum {
  * part of the setup and then subsequent bytes must be in groups of 4
  * consecutive bytes.
  */
+/*
+ * 定义acl里规则里要匹配的字段组合
+ * 例如：现在要匹配192.168.1/24 : 12345-->192.168.2.0/24:23456 的TCP报文
+ * 则一条规则里要有5个字段(filed)：
+ *    proto(tcp/6)
+ *    src<192.168.1.0/24> 
+ *    dst<192.168.2.0/24> 
+ *    sPort<12345> 
+ *    dPort <23456> 
+ * 需要将定义每个字段属性(类型,大小，字段位置，内存对齐后的位置,实际地址位置)
+ * 为了性能，第一次匹配可以不用4字节对齐，后续的必须是4字节对齐
+ */
 struct rte_acl_field_def {
-	uint8_t  type;        /**< type - RTE_ACL_FIELD_TYPE_*. */
-	uint8_t	 size;        /**< size of field 1,2,4, or 8. */
-	uint8_t	 field_index; /**< index of field inside the rule. */
+	uint8_t  type;        /**< type - RTE_ACL_FIELD_TYPE_*.  类型*/
+	uint8_t	 size;        /**< size of field 1,2,4, or 8.    大小*/
+	uint8_t	 field_index; /**< index of field inside the rule. 规则表里的索引*/
 	uint8_t  input_index; /**< 0-N input index. */
-	uint32_t offset;      /**< offset to start of field. */
+	uint32_t offset;      /**< offset to start of field.  匹配字段距离数据起始位置的偏移*/
 };
 
 /**
@@ -61,8 +73,8 @@ struct rte_acl_field_def {
  * Defines the fields of an ACL trie and number of categories to build with.
  */
 struct rte_acl_config {
-	uint32_t num_categories; /**< Number of categories to build with. */
-	uint32_t num_fields;     /**< Number of field definitions. */
+	uint32_t num_categories; /**< Number of categories to build with. *///用多少种规则构建查找树时
+	uint32_t num_fields;     /**< Number of field definitions. *///规则里域的个数，简单理解就是一个规则有几元组
 	struct rte_acl_field_def defs[RTE_ACL_MAX_FIELDS];
 	/**< array of field definitions. */
 	size_t max_size;
@@ -98,8 +110,8 @@ enum {
  * Miscellaneous data for ACL rule.
  */
 struct rte_acl_rule_data {
-	uint32_t category_mask; /**< Mask of categories for that rule. */
-	int32_t  priority;      /**< Priority for that rule. */
+	uint32_t category_mask; /**< Mask of categories for that rule. */ //规则申请使用的类
+	int32_t  priority;      /**< Priority for that rule. */ //优先级
 	uint32_t userdata;      /**< Associated with the rule user data. */
 };
 
@@ -114,22 +126,34 @@ struct rte_acl_rule_data {
 }
 
 RTE_ACL_RULE_DEF(rte_acl_rule,);
+#ifdef DPDK_CL
+//宏展开后
+struct rte_acl_rule{
+	struct rte_acl_rule_data data;
+	struct rte_acl_field field[];
+};
+#endif
 
 #define	RTE_ACL_RULE_SZ(fld_num)	\
 	(sizeof(struct rte_acl_rule) + sizeof(struct rte_acl_field) * (fld_num))
 
-
+/*
+ * 使用RTE_ACL_RULE_DEF宏实现"struct rte_acl_rule"的定义
+ * 好处：如果预先指定大小，可以直接使用静态内存，指定规格个数
+ *       如果不预先指定大小，可以后续根基实际需求动态申请
+ *
+ */
 /** Max number of characters in name.*/
 #define	RTE_ACL_NAMESIZE		32
 
 /**
- * Parameters used when creating the ACL context.
+ * Parameters used when creating the ACL context. 创建上下文使用的参数
  */
 struct rte_acl_param {
-	const char *name;         /**< Name of the ACL context. */
-	int         socket_id;    /**< Socket ID to allocate memory for. */
-	uint32_t    rule_size;    /**< Size of each rule. */
-	uint32_t    max_rule_num; /**< Maximum number of rules. */
+	const char *name;         /**< Name of the ACL context. 名字*/
+	int         socket_id;    /**< Socket ID to allocate memory for. 从哪个socket分配内存*/
+	uint32_t    rule_size;    /**< Size of each rule. sizeof(struct rte_acl_rule)*/
+	uint32_t    max_rule_num; /**< Maximum number of rules. 规则最大个数*/
 };
 
 

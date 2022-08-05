@@ -162,17 +162,17 @@ struct rte_acl_trie {
 struct rte_acl_bld_trie {
 	struct rte_acl_node *trie;
 };
-
+//acl上下文结构体
 struct rte_acl_ctx {
-	char                name[RTE_ACL_NAMESIZE];
+	char                name[RTE_ACL_NAMESIZE]; //名字，初始化赋值
 	/** Name of the ACL context. */
-	int32_t             socket_id;
+	int32_t             socket_id;              //内存使用分socketid，初始化赋值
 	/** Socket ID to allocate memory from. */
-	enum rte_acl_classify_alg alg;
+	enum rte_acl_classify_alg alg;              //查询使用的算法，即哪种指令集
 	uint32_t           first_load_sz;
-	void               *rules;
-	uint32_t            max_rules;
-	uint32_t            rule_sz;
+	void               *rules;                 //规则内存地址
+	uint32_t            max_rules;             //最大规则数
+	uint32_t            rule_sz;               //规则大小
 	uint32_t            num_rules;
 	uint32_t            num_categories;
 	uint32_t            num_tries;

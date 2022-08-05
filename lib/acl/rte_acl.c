@@ -381,13 +381,13 @@ rte_acl_create(const struct rte_acl_param *param)
 
 	snprintf(name, sizeof(name), "ACL_%s", param->name);
 
-	/* calculate amount of memory required for pattern set. */
+	/* calculate amount of memory required for pattern set. */ //头加数据部分
 	sz = sizeof(*ctx) + param->max_rule_num * param->rule_size;
 
 	/* get EAL TAILQ lock. */
 	rte_mcfg_tailq_write_lock();
 
-	/* if we already have one with that name */
+	/* if we already have one with that name 检测是否存在*/
 	TAILQ_FOREACH(te, acl_list, next) {
 		ctx = (struct rte_acl_ctx *) te->data;
 		if (strncmp(param->name, ctx->name, sizeof(ctx->name)) == 0)
@@ -395,7 +395,7 @@ rte_acl_create(const struct rte_acl_param *param)
 	}
 
 	/* if ACL with such name doesn't exist, then create a new one. */
-	if (te == NULL) {
+	if (te == NULL) { //创建tailq节点
 		ctx = NULL;
 		te = rte_zmalloc("ACL_TAILQ_ENTRY", sizeof(*te), 0);
 
@@ -403,7 +403,7 @@ rte_acl_create(const struct rte_acl_param *param)
 			RTE_LOG(ERR, ACL, "Cannot allocate tailq entry!\n");
 			goto exit;
 		}
-
+		//分配内存
 		ctx = rte_zmalloc_socket(name, sz, RTE_CACHE_LINE_SIZE, param->socket_id);
 
 		if (ctx == NULL) {
@@ -414,13 +414,13 @@ rte_acl_create(const struct rte_acl_param *param)
 			goto exit;
 		}
 		/* init new allocated context. */
-		ctx->rules = ctx + 1;
+		ctx->rules = ctx + 1; //规则紧跟着结构体
 		ctx->max_rules = param->max_rule_num;
 		ctx->rule_sz = param->rule_size;
 		ctx->socket_id = param->socket_id;
 		ctx->alg = acl_get_best_alg();
 		strlcpy(ctx->name, param->name, sizeof(ctx->name));
-
+		//将acl结构插入到tailq尾部
 		te->data = (void *) ctx;
 
 		TAILQ_INSERT_TAIL(acl_list, te, next);
