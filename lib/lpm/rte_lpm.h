@@ -36,7 +36,7 @@ extern "C" {
 #define RTE_LPM_TBL8_GROUP_NUM_ENTRIES  256 //一组tbl8表，默认256个
 
 /** @internal Max number of tbl8 groups in the tbl8. */
-#define RTE_LPM_MAX_TBL8_NUM_GROUPS         (1 << 24) //tbl24最大2^24,即每个tbl24可以有一组tbl8
+#define RTE_LPM_MAX_TBL8_NUM_GROUPS         (1 << 24) //tbl24最大2^24,即每个tbl24条目可以有一组tbl8
 
 /** @internal Total number of tbl8 groups in the tbl8. */
 #define RTE_LPM_TBL8_NUM_GROUPS         256 //tbl8组默认个数
