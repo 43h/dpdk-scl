@@ -21,7 +21,7 @@
 
 /* Get the memory size of QSBR variable */
 size_t
-rte_rcu_qsbr_get_memsize(uint32_t max_threads)
+rte_rcu_qsbr_get_memsize(uint32_t max_threads) //计算qsbr占用内存
 {
 	size_t sz;
 
@@ -34,20 +34,20 @@ rte_rcu_qsbr_get_memsize(uint32_t max_threads)
 		return 1;
 	}
 
-	sz = sizeof(struct rte_rcu_qsbr);
+	sz = sizeof(struct rte_rcu_qsbr); //结构体内存大小
 
-	/* Add the size of quiescent state counter array */
-	sz += sizeof(struct rte_rcu_qsbr_cnt) * max_threads;
+	/* Add the size of quiescent state counter array */  
+	sz += sizeof(struct rte_rcu_qsbr_cnt) * max_threads; //线程状态占用内存大小
 
 	/* Add the size of the registered thread ID bitmap array */
-	sz += __RTE_QSBR_THRID_ARRAY_SIZE(max_threads);
+	sz += __RTE_QSBR_THRID_ARRAY_SIZE(max_threads); //线程ID位图数组
 
 	return sz;
 }
 
 /* Initialize a quiescent state variable */
 int
-rte_rcu_qsbr_init(struct rte_rcu_qsbr *v, uint32_t max_threads)
+rte_rcu_qsbr_init(struct rte_rcu_qsbr *v, uint32_t max_threads) //初始化函数
 {
 	size_t sz;
 
@@ -59,16 +59,16 @@ rte_rcu_qsbr_init(struct rte_rcu_qsbr *v, uint32_t max_threads)
 		return 1;
 	}
 
-	sz = rte_rcu_qsbr_get_memsize(max_threads);
+	sz = rte_rcu_qsbr_get_memsize(max_threads); //根据线程个数计算内存
 	if (sz == 1)
 		return 1;
 
 	/* Set all the threads to offline */
-	memset(v, 0, sz);
-	v->max_threads = max_threads;
+	memset(v, 0, sz);                               //全清空
+	v->max_threads = max_threads;                   //记录最大线程个数
 	v->num_elems = RTE_ALIGN_MUL_CEIL(max_threads,
 			__RTE_QSBR_THRID_ARRAY_ELM_SIZE) /
-			__RTE_QSBR_THRID_ARRAY_ELM_SIZE;
+			__RTE_QSBR_THRID_ARRAY_ELM_SIZE;        //关于64向上取整，而后除64
 	v->token = __RTE_QSBR_CNT_INIT;
 	v->acked_token = __RTE_QSBR_CNT_INIT - 1;
 
@@ -79,12 +79,12 @@ rte_rcu_qsbr_init(struct rte_rcu_qsbr *v, uint32_t max_threads)
  * on a QS variable.
  */
 int
-rte_rcu_qsbr_thread_register(struct rte_rcu_qsbr *v, unsigned int thread_id)
+rte_rcu_qsbr_thread_register(struct rte_rcu_qsbr *v, unsigned int thread_id) //线程注册
 {
 	unsigned int i, id, success;
 	uint64_t old_bmap, new_bmap;
 
-	if (v == NULL || thread_id >= v->max_threads) {
+	if (v == NULL || thread_id >= v->max_threads) { //检测参数
 		rte_log(RTE_LOG_ERR, rte_rcu_log_type,
 			"%s(): Invalid input parameter\n", __func__);
 		rte_errno = EINVAL;
@@ -95,8 +95,8 @@ rte_rcu_qsbr_thread_register(struct rte_rcu_qsbr *v, unsigned int thread_id)
 	__RTE_RCU_IS_LOCK_CNT_ZERO(v, thread_id, ERR, "Lock counter %u\n",
 				v->qsbr_cnt[thread_id].lock_cnt);
 
-	id = thread_id & __RTE_QSBR_THRID_MASK;
-	i = thread_id >> __RTE_QSBR_THRID_INDEX_SHIFT;
+	id = thread_id & __RTE_QSBR_THRID_MASK;        //低6位做偏移
+	i = thread_id >> __RTE_QSBR_THRID_INDEX_SHIFT; //高26位做索引
 
 	/* Make sure that the counter for registered threads does not
 	 * go out of sync. Hence, additional checks are required.
@@ -108,15 +108,15 @@ rte_rcu_qsbr_thread_register(struct rte_rcu_qsbr *v, unsigned int thread_id)
 		return 0;
 
 	do {
-		new_bmap = old_bmap | (1UL << id);
+		new_bmap = old_bmap | (1UL << id); //置位
 		success = __atomic_compare_exchange(
 					__RTE_QSBR_THRID_ARRAY_ELM(v, i),
 					&old_bmap, &new_bmap, 0,
-					__ATOMIC_RELEASE, __ATOMIC_RELAXED);
+					__ATOMIC_RELEASE, __ATOMIC_RELAXED); //替换位图
 
 		if (success)
 			__atomic_fetch_add(&v->num_threads,
-						1, __ATOMIC_RELAXED);
+						1, __ATOMIC_RELAXED); //在线线程总数增一
 		else if (old_bmap & (1UL << id))
 			/* Someone else registered this thread.
 			 * Counter should not be incremented.
@@ -136,7 +136,7 @@ rte_rcu_qsbr_thread_unregister(struct rte_rcu_qsbr *v, unsigned int thread_id)
 	unsigned int i, id, success;
 	uint64_t old_bmap, new_bmap;
 
-	if (v == NULL || thread_id >= v->max_threads) {
+	if (v == NULL || thread_id >= v->max_threads) { //检测线程ID
 		rte_log(RTE_LOG_ERR, rte_rcu_log_type,
 			"%s(): Invalid input parameter\n", __func__);
 		rte_errno = EINVAL;
@@ -147,20 +147,20 @@ rte_rcu_qsbr_thread_unregister(struct rte_rcu_qsbr *v, unsigned int thread_id)
 	__RTE_RCU_IS_LOCK_CNT_ZERO(v, thread_id, ERR, "Lock counter %u\n",
 				v->qsbr_cnt[thread_id].lock_cnt);
 
-	id = thread_id & __RTE_QSBR_THRID_MASK;
-	i = thread_id >> __RTE_QSBR_THRID_INDEX_SHIFT;
+	id = thread_id & __RTE_QSBR_THRID_MASK;        //取低6位
+	i = thread_id >> __RTE_QSBR_THRID_INDEX_SHIFT; //除64
 
 	/* Make sure that the counter for registered threads does not
 	 * go out of sync. Hence, additional checks are required.
 	 */
 	/* Check if the thread is already unregistered */
 	old_bmap = __atomic_load_n(__RTE_QSBR_THRID_ARRAY_ELM(v, i),
-					__ATOMIC_RELAXED);
+					__ATOMIC_RELAXED); //读取位图
 	if (!(old_bmap & (1UL << id)))
 		return 0;
 
 	do {
-		new_bmap = old_bmap & ~(1UL << id);
+		new_bmap = old_bmap & ~(1UL << id); //清空特定位
 		/* Make sure any loads of the shared data structure are
 		 * completed before removal of the thread from the list of
 		 * reporting threads.
@@ -172,7 +172,7 @@ rte_rcu_qsbr_thread_unregister(struct rte_rcu_qsbr *v, unsigned int thread_id)
 
 		if (success)
 			__atomic_fetch_sub(&v->num_threads,
-						1, __ATOMIC_RELAXED);
+						1, __ATOMIC_RELAXED); //注册线程数减一
 		else if (!(old_bmap & (1UL << id)))
 			/* Someone else unregistered this thread.
 			 * Counter should not be incremented.
@@ -364,14 +364,14 @@ int rte_rcu_qsbr_dq_enqueue(struct rte_rcu_qsbr_dq *dq, void *e)
 	char data[dq->esize];
 	dq_elem = (__rte_rcu_qsbr_dq_elem_t *)data;
 	/* Start the grace period */
-	dq_elem->token = rte_rcu_qsbr_start(dq->v);
+	dq_elem->token = rte_rcu_qsbr_start(dq->v); //更新token
 
 	/* Reclaim resources if the queue size has hit the reclaim
 	 * limit. This helps the queue from growing too large and
 	 * allows time for reader threads to report their quiescent state.
 	 */
 	cur_size = rte_ring_count(dq->r);
-	if (cur_size > dq->trigger_reclaim_limit) {
+	if (cur_size > dq->trigger_reclaim_limit) { //超过阈值触发删除
 		rte_log(RTE_LOG_INFO, rte_rcu_log_type,
 			"%s(): Triggering reclamation\n", __func__);
 		rte_rcu_qsbr_dq_reclaim(dq, dq->max_reclaim_size,
@@ -385,12 +385,12 @@ int rte_rcu_qsbr_dq_enqueue(struct rte_rcu_qsbr_dq *dq, void *e)
 	 * on the queue. So, some tokens might wait longer than they
 	 * are required to be reclaimed.
 	 */
-	memcpy(dq_elem->elem, e, dq->esize - __RTE_QSBR_TOKEN_SIZE);
+	memcpy(dq_elem->elem, e, dq->esize - __RTE_QSBR_TOKEN_SIZE); //拷贝数据
 	/* Check the status as enqueue might fail since the other threads
 	 * might have used up the freed space.
 	 * Enqueue uses the configured flags when the DQ was created.
 	 */
-	if (rte_ring_enqueue_elem(dq->r, data, dq->esize) != 0) {
+	if (rte_ring_enqueue_elem(dq->r, data, dq->esize) != 0) { //入队
 		rte_log(RTE_LOG_ERR, rte_rcu_log_type,
 			"%s(): Enqueue failed\n", __func__);
 		/* Note that the token generated above is not used.
@@ -435,21 +435,21 @@ rte_rcu_qsbr_dq_reclaim(struct rte_rcu_qsbr_dq *dq, unsigned int n,
 	/* Check reader threads quiescent state and reclaim resources */
 	while (cnt < n &&
 		rte_ring_dequeue_bulk_elem_start(dq->r, &data,
-					dq->esize, 1, available) != 0) {
+					dq->esize, 1, available) != 0) { //PEEK队列数据
 		dq_elem = (__rte_rcu_qsbr_dq_elem_t *)data;
 
 		/* Reclaim the resource */
-		if (rte_rcu_qsbr_check(dq->v, dq_elem->token, false) != 1) {
+		if (rte_rcu_qsbr_check(dq->v, dq_elem->token, false) != 1) { //检测是否可以回收资源
 			rte_ring_dequeue_elem_finish(dq->r, 0);
-			break;
+			break;                                                   //否，退出
 		}
-		rte_ring_dequeue_elem_finish(dq->r, 1);
+		rte_ring_dequeue_elem_finish(dq->r, 1);                      //是，释放
 
 		rte_log(RTE_LOG_INFO, rte_rcu_log_type,
 			"%s(): Reclaimed token = %" PRIu64 "\n",
 			__func__, dq_elem->token);
 
-		dq->free_fn(dq->p, dq_elem->elem, 1);
+		dq->free_fn(dq->p, dq_elem->elem, 1);                       //释放资源
 
 		cnt++;
 	}

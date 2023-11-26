@@ -20,24 +20,24 @@
  * hold the deleted entries from the data structure that are not
  * yet freed.
  */
-struct rte_rcu_qsbr_dq {
+struct rte_rcu_qsbr_dq {                           //延迟队列
 	struct rte_rcu_qsbr *v; /**< RCU QSBR variable used by this queue.*/
 	struct rte_ring *r;     /**< RCU QSBR defer queue. */
-	uint32_t size;
+	uint32_t size;                                 //队列大小
 	/**< Number of elements in the defer queue */
-	uint32_t esize;
+	uint32_t esize;                                //元素大小
 	/**< Size (in bytes) of data, including the token, stored on the
 	 *   defer queue.
 	 */
-	uint32_t trigger_reclaim_limit;
+	uint32_t trigger_reclaim_limit;               //触发删除阈值
 	/**< Trigger automatic reclamation after the defer queue
 	 *   has at least these many resources waiting.
 	 */
-	uint32_t max_reclaim_size;
+	uint32_t max_reclaim_size;                     //每次回收最大值
 	/**< Reclaim at the max these many resources during auto
 	 *   reclamation.
 	 */
-	rte_rcu_qsbr_free_resource_t free_fn;
+	rte_rcu_qsbr_free_resource_t free_fn;          //资源释放函数
 	/**< Function to call to free the resource. */
 	void *p;
 	/**< Pointer passed to the free function. Typically, this is the

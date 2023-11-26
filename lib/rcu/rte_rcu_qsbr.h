@@ -8,7 +8,7 @@
 /**
  * @file
  *
- * RTE Quiescent State Based Reclamation (QSBR).
+ * RTE Quiescent State Based Reclamation (QSBR). //基于静态回收
  *
  * @warning
  * @b EXPERIMENTAL:
@@ -49,7 +49,7 @@ extern int rte_rcu_log_type;
 #define __RTE_RCU_DP_LOG(level, fmt, args...)
 #endif
 
-#if defined(RTE_LIBRTE_RCU_DEBUG)
+#if defined(RTE_LIBRTE_RCU_DEBUG) //调试开关
 #define __RTE_RCU_IS_LOCK_CNT_ZERO(v, thread_id, level, fmt, args...) do {\
 	if (v->qsbr_cnt[thread_id].lock_cnt) \
 		rte_log(RTE_LOG_ ## level, rte_rcu_log_type, \
@@ -63,25 +63,25 @@ extern int rte_rcu_log_type;
  * Given thread id needs to be converted to index into the array and
  * the id within the array element.
  */
-#define __RTE_QSBR_THRID_ARRAY_ELM_SIZE (sizeof(uint64_t) * 8)
+#define __RTE_QSBR_THRID_ARRAY_ELM_SIZE (sizeof(uint64_t) * 8) //8*8=64
 #define __RTE_QSBR_THRID_ARRAY_SIZE(max_threads) \
 	RTE_ALIGN(RTE_ALIGN_MUL_CEIL(max_threads, \
-		__RTE_QSBR_THRID_ARRAY_ELM_SIZE) >> 3, RTE_CACHE_LINE_SIZE)
+		__RTE_QSBR_THRID_ARRAY_ELM_SIZE) >> 3, RTE_CACHE_LINE_SIZE) //基于64向上取整，再除8,再64字节对齐
 #define __RTE_QSBR_THRID_ARRAY_ELM(v, i) ((uint64_t *) \
 	((struct rte_rcu_qsbr_cnt *)(v + 1) + v->max_threads) + i)
-#define __RTE_QSBR_THRID_INDEX_SHIFT 6
-#define __RTE_QSBR_THRID_MASK 0x3f
+#define __RTE_QSBR_THRID_INDEX_SHIFT 6      //高26bit做索引
+#define __RTE_QSBR_THRID_MASK 0x3f          //低6bit做偏移
 #define RTE_QSBR_THRID_INVALID 0xffffffff
 
 /* Worker thread counter */
 struct rte_rcu_qsbr_cnt {
-	uint64_t cnt;
+	uint64_t cnt; //静默态计数
 	/**< Quiescent state counter. Value 0 indicates the thread is offline
 	 *   64b counter is used to avoid adding more code to address
 	 *   counter overflow. Changing this to 32b would require additional
 	 *   changes to various APIs.
 	 */
-	uint32_t lock_cnt;
+	uint32_t lock_cnt; //加锁计数，调试使用
 	/**< Lock counter. Used when RTE_LIBRTE_RCU_DEBUG is enabled */
 } __rte_cache_aligned;
 
@@ -106,9 +106,9 @@ struct rte_rcu_qsbr {
 
 	uint32_t num_elems __rte_cache_aligned;
 	/**< Number of elements in the thread ID array */
-	uint32_t num_threads;
+	uint32_t num_threads; //访问线程个数
 	/**< Number of threads currently using this QS variable */
-	uint32_t max_threads;
+	uint32_t max_threads; //最大线程个数
 	/**< Maximum number of threads using this QS variable */
 
 	struct rte_rcu_qsbr_cnt qsbr_cnt[0] __rte_cache_aligned;
@@ -311,13 +311,13 @@ rte_rcu_qsbr_thread_online(struct rte_rcu_qsbr *v, unsigned int thread_id)
 	 * the following will not move down after the load of any shared
 	 * data structure.
 	 */
-	t = __atomic_load_n(&v->token, __ATOMIC_RELAXED);
+	t = __atomic_load_n(&v->token, __ATOMIC_RELAXED); //读取token
 
 	/* __atomic_store_n(cnt, __ATOMIC_RELAXED) is used to ensure
 	 * 'cnt' (64b) is accessed atomically.
 	 */
 	__atomic_store_n(&v->qsbr_cnt[thread_id].cnt,
-		t, __ATOMIC_RELAXED);
+		t, __ATOMIC_RELAXED); //记录当前token
 
 	/* The subsequent load of the data structure should not
 	 * move above the store. Hence a store-load barrier
@@ -363,7 +363,7 @@ rte_rcu_qsbr_thread_offline(struct rte_rcu_qsbr *v, unsigned int thread_id)
 	 */
 
 	__atomic_store_n(&v->qsbr_cnt[thread_id].cnt,
-		__RTE_QSBR_CNT_THR_OFFLINE, __ATOMIC_RELEASE);
+		__RTE_QSBR_CNT_THR_OFFLINE, __ATOMIC_RELEASE); //记数置0
 }
 
 /**
@@ -461,7 +461,7 @@ rte_rcu_qsbr_start(struct rte_rcu_qsbr *v)
 	 * structure are visible to the workers before the token
 	 * update is visible.
 	 */
-	t = __atomic_fetch_add(&v->token, 1, __ATOMIC_RELEASE) + 1;
+	t = __atomic_fetch_add(&v->token, 1, __ATOMIC_RELEASE) + 1; //更新token
 
 	return t;
 }
@@ -493,16 +493,16 @@ rte_rcu_qsbr_quiescent(struct rte_rcu_qsbr *v, unsigned int thread_id)
 	 * Later loads of the shared data structure should not move
 	 * above this load. Hence, use load-acquire.
 	 */
-	t = __atomic_load_n(&v->token, __ATOMIC_ACQUIRE);
+	t = __atomic_load_n(&v->token, __ATOMIC_ACQUIRE); //读取当前token
 
 	/* Check if there are updates available from the writer.
 	 * Inform the writer that updates are visible to this reader.
 	 * Prior loads of the shared data structure should not move
 	 * beyond this store. Hence use store-release.
 	 */
-	if (t != __atomic_load_n(&v->qsbr_cnt[thread_id].cnt, __ATOMIC_RELAXED))
+	if (t != __atomic_load_n(&v->qsbr_cnt[thread_id].cnt, __ATOMIC_RELAXED)) //若token不一致
 		__atomic_store_n(&v->qsbr_cnt[thread_id].cnt,
-					 t, __ATOMIC_RELEASE);
+					 t, __ATOMIC_RELEASE); //更新token
 
 	__RTE_RCU_DP_LOG(DEBUG, "%s: update: token = %" PRIu64 ", Thread ID = %d",
 		__func__, t, thread_id);
@@ -593,12 +593,12 @@ __rte_rcu_qsbr_check_all(struct rte_rcu_qsbr *v, uint64_t t, bool wait)
 	uint64_t c;
 	uint64_t acked_token = __RTE_QSBR_CNT_MAX;
 
-	for (i = 0, cnt = v->qsbr_cnt; i < v->max_threads; i++, cnt++) {
+	for (i = 0, cnt = v->qsbr_cnt; i < v->max_threads; i++, cnt++) { //遍历所有线程
 		__RTE_RCU_DP_LOG(DEBUG,
 			"%s: check: token = %" PRIu64 ", wait = %d, Thread ID = %d",
 			__func__, t, wait, i);
 		while (1) {
-			c = __atomic_load_n(&cnt->cnt, __ATOMIC_ACQUIRE);
+			c = __atomic_load_n(&cnt->cnt, __ATOMIC_ACQUIRE); //读取计数
 			__RTE_RCU_DP_LOG(DEBUG,
 				"%s: status: token = %" PRIu64 ", wait = %d, Thread QS cnt = %" PRIu64 ", Thread ID = %d",
 				__func__, t, wait, c, i);
@@ -610,7 +610,7 @@ __rte_rcu_qsbr_check_all(struct rte_rcu_qsbr *v, uint64_t t, bool wait)
 				break;
 
 			/* This thread is not in quiescent state */
-			if (!wait)
+			if (!wait) //不等待直接返回
 				return 0;
 
 			rte_pause();
@@ -671,20 +671,20 @@ rte_rcu_qsbr_check(struct rte_rcu_qsbr *v, uint64_t t, bool wait)
 	RTE_ASSERT(v != NULL);
 
 	/* Check if all the readers have already acknowledged this token */
-	if (likely(t <= v->acked_token)) {
+	if (likely(t <= v->acked_token)) {          //与最后一次记录得读线程token比较
 		__RTE_RCU_DP_LOG(DEBUG,
 			"%s: check: token = %" PRIu64 ", wait = %d",
 			__func__, t, wait);
 		__RTE_RCU_DP_LOG(DEBUG,
 			"%s: status: least acked token = %" PRIu64,
 			__func__, v->acked_token);
-		return 1;
+		return 1;                              //多个写线程会更新token并且检测
 	}
 
 	if (likely(v->num_threads == v->max_threads))
-		return __rte_rcu_qsbr_check_all(v, t, wait);
+		return __rte_rcu_qsbr_check_all(v, t, wait); //检测所有读线程
 	else
-		return __rte_rcu_qsbr_check_selective(v, t, wait);
+		return __rte_rcu_qsbr_check_selective(v, t, wait); //检测特定线程
 }
 
 /**
