@@ -15,7 +15,7 @@
 #define strerror_r(errnum, buf, buflen) strerror_s(buf, buflen, errnum)
 #endif
 
-RTE_DEFINE_PER_LCORE(int, _rte_errno);
+RTE_DEFINE_PER_LCORE(int, _rte_errno); //__thread __typeof__(int) per_lcore__rte_errno
 
 const char *
 rte_strerror(int errnum)
@@ -27,8 +27,8 @@ rte_strerror(int errnum)
 	static const char *sep = "";
 #endif
 #define RETVAL_SZ 256
-	static RTE_DEFINE_PER_LCORE(char[RETVAL_SZ], retval);
-	char *ret = RTE_PER_LCORE(retval);
+	static RTE_DEFINE_PER_LCORE(char[RETVAL_SZ], retval); //全局字串，存储错误信息
+	char *ret = RTE_PER_LCORE(retval);                    //定义指向字串的指针，通过该指针读取字串
 
 	/* since some implementations of strerror_r throw an error
 	 * themselves if errnum is too big, we handle that case here */
@@ -45,7 +45,7 @@ rte_strerror(int errnum)
 		case E_RTE_NO_CONFIG:
 			return "Missing rte_config structure";
 		default:
-			if (strerror_r(errnum, ret, RETVAL_SZ) != 0)
+			if (strerror_r(errnum, ret, RETVAL_SZ) != 0) //linux默认错误函数
 				snprintf(ret, RETVAL_SZ, "Unknown error%s %d",
 						sep, errnum);
 		}

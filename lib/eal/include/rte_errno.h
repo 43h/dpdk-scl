@@ -17,7 +17,7 @@ extern "C" {
 
 #include <rte_per_lcore.h>
 
-RTE_DECLARE_PER_LCORE(int, _rte_errno); /**< Per core error number. */
+RTE_DECLARE_PER_LCORE(int, _rte_errno); /**< Per core error number. */ //申明错误值
 
 /**
  * Error number value, stored per-thread, which can be queried after
@@ -26,7 +26,7 @@ RTE_DECLARE_PER_LCORE(int, _rte_errno); /**< Per core error number. */
  * Uses standard values from errno.h wherever possible, with a small number
  * of additional possible values for RTE-specific conditions.
  */
-#define rte_errno RTE_PER_LCORE(_rte_errno)
+#define rte_errno RTE_PER_LCORE(_rte_errno) //宏定义替换
 
 /**
  * Function which returns a printable string describing a particular
