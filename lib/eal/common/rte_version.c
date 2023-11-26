@@ -25,8 +25,8 @@ rte_version_release(void) { return RTE_VER_RELEASE; }
 const char *
 rte_version(void)
 {
-	static char version[32];
-	if (version[0] != 0)
+	static char version[32];  //为版本字串分配内存
+	if (version[0] != 0)      //有版本字串直接返回，无版本字串则构造
 		return version;
 	if (strlen(RTE_VER_SUFFIX) == 0)
 		snprintf(version, sizeof(version), "%s %d.%02d.%d",
