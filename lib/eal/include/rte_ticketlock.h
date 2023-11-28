@@ -50,7 +50,7 @@ typedef union {
 static inline void
 rte_ticketlock_init(rte_ticketlock_t *tl)
 {
-	__atomic_store_n(&tl->tickets, 0, __ATOMIC_RELAXED);
+	__atomic_store_n(&tl->tickets, 0, __ATOMIC_RELAXED); //初始化置0
 }
 
 /**
@@ -62,8 +62,8 @@ rte_ticketlock_init(rte_ticketlock_t *tl)
 static inline void
 rte_ticketlock_lock(rte_ticketlock_t *tl)
 {
-	uint16_t me = __atomic_fetch_add(&tl->s.next, 1, __ATOMIC_RELAXED);
-	rte_wait_until_equal_16(&tl->s.current, me, __ATOMIC_ACQUIRE);
+	uint16_t me = __atomic_fetch_add(&tl->s.next, 1, __ATOMIC_RELAXED); //获取序列，序列自增
+	rte_wait_until_equal_16(&tl->s.current, me, __ATOMIC_ACQUIRE);      //阻塞等待当前序列与获取的一致
 }
 
 /**
@@ -75,8 +75,8 @@ rte_ticketlock_lock(rte_ticketlock_t *tl)
 static inline void
 rte_ticketlock_unlock(rte_ticketlock_t *tl)
 {
-	uint16_t i = __atomic_load_n(&tl->s.current, __ATOMIC_RELAXED);
-	__atomic_store_n(&tl->s.current, i + 1, __ATOMIC_RELEASE);
+	uint16_t i = __atomic_load_n(&tl->s.current, __ATOMIC_RELAXED);  //读取当前序列
+	__atomic_store_n(&tl->s.current, i + 1, __ATOMIC_RELEASE);       //当前序列增一
 }
 
 /**
@@ -91,12 +91,12 @@ static inline int
 rte_ticketlock_trylock(rte_ticketlock_t *tl)
 {
 	rte_ticketlock_t oldl, newl;
-	oldl.tickets = __atomic_load_n(&tl->tickets, __ATOMIC_RELAXED);
+	oldl.tickets = __atomic_load_n(&tl->tickets, __ATOMIC_RELAXED); //读取序号
 	newl.tickets = oldl.tickets;
 	newl.s.next++;
-	if (oldl.s.next == oldl.s.current) {
+	if (oldl.s.next == oldl.s.current) { //若无线程持锁
 		if (__atomic_compare_exchange_n(&tl->tickets, &oldl.tickets,
-		    newl.tickets, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
+		    newl.tickets, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) //原子判断序号是否未变，若未变则更新
 			return 1;
 	}
 
@@ -116,11 +116,11 @@ rte_ticketlock_is_locked(rte_ticketlock_t *tl)
 {
 	rte_ticketlock_t tic;
 	tic.tickets = __atomic_load_n(&tl->tickets, __ATOMIC_ACQUIRE);
-	return (tic.s.current != tic.s.next);
+	return (tic.s.current != tic.s.next); //检测当前序号和下一序号是否相等
 }
 
 /**
- * The rte_ticketlock_recursive_t type.
+ * The rte_ticketlock_recursive_t type. //递归版本
  */
 #define TICKET_LOCK_INVALID_ID -1
 
